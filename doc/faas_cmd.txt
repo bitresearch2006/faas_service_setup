@@ -1,0 +1,32 @@
+Useful commands
+
+# open bash for look the docker image
+docker run -it --rm localhost:5000/ocr-detect:latest sh
+
+# build and make docker image using faas
+faas-cli build -f stack.yml
+# Push the image to docker location
+faas-cli push -f stack.yml
+# deploy the image in docker server
+faas-cli deploy -f stack.yml
+
+# single cmd for build, push deploy
+faas-cli up -f stack.yml
+
+# view logs of ran image
+faas-cli logs ocr-detect
+
+# create template for services
+faas-cli new my-function --lang python3-http-debian
+
+# Verify in command line input 
+curl -X POST http://localhost:8080 \
+  -H "Content-Type: application/json" \
+  -d {					\
+  "image_b64": "iVBORw0KGgoAAAANSUhEUgAA...", \
+  "diagnostics": true				\
+}
+
+# restart the faas service
+sudo systemctl restart faasd
+sudo systemctl restart faasd-provider
