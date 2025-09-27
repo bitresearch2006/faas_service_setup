@@ -30,3 +30,9 @@ curl -X POST http://localhost:8080 \
 # restart the faas service
 sudo systemctl restart faasd
 sudo systemctl restart faasd-provider
+
+Access through website
+http://localhost:8080/ui/
+user name: admin
+password: get through execute this command: sudo cat /var/lib/faasd/secrets/basic-auth-password
+
