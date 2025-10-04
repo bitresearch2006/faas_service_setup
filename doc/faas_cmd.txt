@@ -1,5 +1,8 @@
 Useful commands
 
+# register the docker image
+docker run -d -p 5000:5000 --restart=always --name registry registry:2
+
 # open bash for look the docker image
 docker run -it --rm localhost:5000/ocr-detect:latest sh
 
@@ -35,4 +38,14 @@ Access through website
 http://localhost:8080/ui/
 user name: admin
 password: get through execute this command: sudo cat /var/lib/faasd/secrets/basic-auth-password
+
+Docker action
+docker images      // show the docker image
+docker rmi -f obj-detect:old  // remove old service
+
+faas-cli list      // list servives from faas
+faas-cli remove obj-detect  // remove unused in faas
+
+
+
 
