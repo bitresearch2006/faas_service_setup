@@ -46,6 +46,13 @@ docker rmi -f obj-detect:old  // remove old service
 faas-cli list      // list servives from faas
 faas-cli remove obj-detect  // remove unused in faas
 
+# clean up for system
+sudo apt autoremove -y
+sudo apt clean          // clean the unused in system
+docker system prune -a --volumes      // remove unused docker images
+
+
+
 
 
 
