@@ -1,186 +1,137 @@
 #!/bin/bash
+# Faas Setup Script for Linux (Custom from your GitHub account)
+# Author: You
+# Usage: sudo bash faas_setup.sh
 
-# Copyright OpenFaaS Author(s) 2019
-#########################
-# Repo specific content #
-#########################
 
-export VERIFY_CHECKSUM=1
-export ALIAS_NAME="faas"
-export OWNER="bitresearch2006"
-export REPO="faas-cli"
-export BINLOCATION="/usr/local/bin"
-export SUCCESS_CMD="$BINLOCATION/$REPO version"
+set -e
 
-###############################
-# Content common across repos #
-###############################
+# -------------------------
+# --- CONFIGURATION ---
+# -------------------------
+GITHUB_ACCOUNT="bitresearch2006"     # Your GitHub username
+FAAS_CLI_REPO="faas-cli"
+FAASD_REPO="faasd"
+BIN_DIR="/usr/local/bin"
 
-version=""
+# --- Function to get the latest release tag using GitHub API ---
+get_latest_tag() {
+    local repo_owner=$1
+    local repo_name=$2
+    # Fetches the latest release, extracts the 'tag_name' field, and cleans it up
+    curl -s "https://api.github.com/repos/$repo_owner/$repo_name/releases/latest" | \
+    grep -oP '"tag_name":\s*"\K[^"]+' 
+}
 
-echo "Finding latest version from GitHub"
-version=$(curl -sI https://github.com/$OWNER/$REPO/releases/latest | grep -i "location:" | awk -F"/" '{ printf "%s", $NF }' | tr -d '\r')
-echo $version
+# -------------------------
+# --- 1. Install Dependencies ---
+# -------------------------
+echo "[1/45] 🛠️ Installing dependencies and configuring Docker..."
+sudo apt update
+sudo apt install -y curl git docker.io
 
-if [ ! $version ]; then
-    echo "Failed while attempting to install $REPO. Please manually install:"
-    echo ""
-    echo "1. Open your web browser and go to https://github.com/$OWNER/$REPO/releases"
-    echo "2. Download the latest release for your platform. Call it '$REPO'."
-    echo "3. chmod +x ./$REPO"
-    echo "4. mv ./$REPO $BINLOCATION"
-    if [ -n "$ALIAS_NAME" ]; then
-        echo "5. ln -sf $BINLOCATION/$REPO $BINLOCATION/$ALIAS_NAME"
-    fi
+# Enable and start Docker
+sudo systemctl enable docker
+sudo systemctl start docker
+
+# Add current user to docker group (requires re-login to take effect)
+sudo usermod -aG docker "$USER"
+echo "User '$USER' added to the docker group. Please re-login for this change to fully apply."
+
+# -------------------------
+# --- 2. Install faasd ---
+# -------------------------
+echo "[2/5] 📦 Installing faasd from your GitHub repo: $GITHUB_ACCOUNT/$FAASD_REPO..."
+LATEST_FAASD=$(get_latest_tag "$GITHUB_ACCOUNT" "$FAASD_REPO")
+
+if [ -z "$LATEST_FAASD" ]; then
+    echo "ERROR: Could not find latest release tag for $FAASD_REPO. ENSURE a release with assets is published on GitHub. Exiting."
     exit 1
 fi
 
-hasCli() {
+echo "Latest faasd version: $LATEST_FAASD"
+# Download the asset file named 'faasd' from the release
+curl -sSL "https://github.com/$GITHUB_ACCOUNT/$FAASD_REPO/releases/download/$LATEST_FAASD/faasd" -o "faasd"
+chmod +x faasd
+sudo mv faasd "$BIN_DIR/faasd"
 
-    hasCurl=$(which curl)
-    if [ "$?" = "1" ]; then
-        echo "You need curl to use this script."
-        exit 1
-    fi
-}
+# -------------------------
+# --- 3. Install faas-cli ---
+# -------------------------
+echo "[3/5] 💻 Installing faas-cli from your GitHub repo: $GITHUB_ACCOUNT/$FAAS_CLI_REPO..."
+LATEST_CLI=$(get_latest_tag "$GITHUB_ACCOUNT" "$FAAS_CLI_REPO")
 
-checkHash(){
+if [ -z "$LATEST_CLI" ]; then
+    echo "ERROR: Could not find latest release tag for $FAAS_CLI_REPO. ENSURE a release with assets is published on GitHub. Exiting."
+    exit 1
+fi
 
-    sha_cmd="sha256sum"
+echo "Latest faas-cli version: $LATEST_CLI"
+# Download the asset file named 'faas-cli' from the release
+curl -sSL "https://github.com/$GITHUB_ACCOUNT/$FAAS_CLI_REPO/releases/download/$LATEST_CLI/faas-cli" -o "faas-cli"
+chmod +x faas-cli
+sudo mv faas-cli "$BIN_DIR/faas-cli"
 
-    if [ ! -x "$(command -v $sha_cmd)" ]; then
-    sha_cmd="shasum -a 256"
-    fi
+# -------------------------
+# --- 4. Initialize faasd ---
+# -------------------------
+# Define the destination directory for faasd configuration
+FAASD_CONFIG_DEST="/var/lib/faasd"
+HACK_DIR="$FAASD_CONFIG_DEST/hack"
 
-    if [ -x "$(command -v $sha_cmd)" ]; then
+echo "[4/5] ⚙️ Setting up faasd configuration in $FAASD_CONFIG_DEST..."
 
-    targetFileDir=${targetFile%/*}
+# 1. Ensure the destination directory and the required 'hack' subdirectory exist
+sudo mkdir -p "$FAASD_CONFIG_DEST"
+sudo mkdir -p "$HACK_DIR"
 
-    (cd "$targetFileDir" && curl -sSL $url.sha256|$sha_cmd -c >/dev/null)
-   
-        if [ "$?" != "0" ]; then
-            rm "$targetFile"
-            echo "Binary checksum didn't match. Exiting"
-            exit 1
-        fi   
-    fi
-}
+# 2. Download the required config files directly from the 'master' branch of your GitHub fork
 
-getPackage() {
-    uname=$(uname)
-    userid=$(id -u)
-    arch=$(uname -m)
-    suffix=""
-    case $uname in
-    "Darwin")
-        suffix="-darwin"
-        case $arch in
-        "aarch64")
-        suffix="-darwin-arm64"
-        ;;
-        esac
-    ;;
-    "MINGW"*)
-    suffix=".exe"
-    BINLOCATION="$HOME/bin"
-    mkdir -p $BINLOCATION
+echo "Downloading configuration files..."
 
-    ;;
-    "Linux")
-        case $arch in
-        "aarch64")
-        suffix="-arm64"
-        ;;
-        esac
-        case $arch in
-        "armv6l" | "armv7l")
-        suffix="-armhf"
-        ;;
-        esac
-    ;;
-    esac
+# Configuration files for the root of /var/lib/faasd/
+sudo curl -sSL "https://raw.githubusercontent.com/$GITHUB_ACCOUNT/$FAASD_REPO/master/docker-compose.yaml" \
+    --output "$FAASD_CONFIG_DEST/docker-compose.yaml"
 
-    targetFile="/tmp/$REPO$suffix"
-    
-    if [ "$userid" != "0" ]; then
-        targetFile="$(pwd)/$REPO$suffix"
-    fi
+sudo curl -sSL "https://raw.githubusercontent.com/$GITHUB_ACCOUNT/$FAASD_REPO/master/resolv.conf" \
+    --output "$FAASD_CONFIG_DEST/resolv.conf"
 
-    if [ -e "$targetFile" ]; then
-        rm "$targetFile"
-    fi
+sudo curl -sSL "https://raw.githubusercontent.com/$GITHUB_ACCOUNT/$FAASD_REPO/master/prometheus.yml" \
+    --output "$FAASD_CONFIG_DEST/prometheus.yml"
 
-    url=https://github.com/$OWNER/$REPO/releases/download/$version/$REPO$suffix
-    echo "Downloading package $url as $targetFile"
+# faasd-provider.service required by the installer in the 'hack' subdirectory
+sudo curl -sSL "https://raw.githubusercontent.com/$GITHUB_ACCOUNT/$FAASD_REPO/master/hack/faasd-provider.service" \
+    --output "$HACK_DIR/faasd-provider.service"
 
-    curl -sSL $url --output "$targetFile"
+# faasd required by the installer in the 'hack' subdirectory
+sudo curl -sSL "https://raw.githubusercontent.com/$GITHUB_ACCOUNT/$FAASD_REPO/master/hack/faasd.service" \
+    --output "$HACK_DIR/faasd.service"
 
-    if [ "$?" = "0" ]; then
+echo "[4/5] 🚀 Installing and starting faasd. This may take a moment..."
 
-        if [ "$VERIFY_CHECKSUM" = "1" ]; then
-            checkHash
-        fi
+# Execute the directory change AND install command with root privileges using sudo sh -c
+sudo sh -c "
+    # Temporarily change directory to where the config files are located
+    cd \"$FAASD_CONFIG_DEST\" && 
+    # Run the install command from that location
+    faasd install
+"
 
-    chmod +x "$targetFile"
+echo "faasd installation complete. Check status with: sudo systemctl status faasd"
 
-    echo "Download complete."
-       
-    if [ ! -w "$BINLOCATION" ]; then
+# --- 5. Confirm Installation ---
+# -------------------------
+echo "[5/5] Checking installations..."
+docker --version
+faas-cli version
+# faasd --version # REMOVED: This flag is not supported by the binary.
 
-            echo
-            echo "============================================================"
-            echo "  The script was run as a user who is unable to write"
-            echo "  to $BINLOCATION. To complete the installation the"
-            echo "  following commands may need to be run manually."
-            echo "============================================================"
-            echo
-            echo "  sudo cp $REPO$suffix $BINLOCATION/$REPO"
-            
-            if [ -n "$ALIAS_NAME" ]; then
-                echo "  sudo ln -sf $BINLOCATION/$REPO $BINLOCATION/$ALIAS_NAME"
-            fi
-            
-            echo
+# Check the status of the installed service, which is the most reliable check.
+if sudo systemctl is-active faasd --quiet; then
+    echo "✅ faasd service is running."
+else
+    echo "❌ faasd service failed to start. Check logs with: sudo journalctl -u faasd -xe"
+    exit 1
+fi
 
-        else
-
-            echo
-            echo "Running with sufficient permissions to attempt to move $REPO to $BINLOCATION"
-
-            if [ ! -w "$BINLOCATION/$REPO" ] && [ -f "$BINLOCATION/$REPO" ]; then
-
-            echo
-            echo "================================================================"
-            echo "  $BINLOCATION/$REPO already exists and is not writeable"
-            echo "  by the current user.  Please adjust the binary ownership"
-            echo "  or run sh/bash with sudo." 
-            echo "================================================================"
-            echo
-            exit 1
-
-            fi
-
-            mv "$targetFile" $BINLOCATION/$REPO
-        
-            if [ "$?" = "0" ]; then
-                echo "New version of $REPO installed to $BINLOCATION"
-            fi
-
-            if [ -e "$targetFile" ]; then
-                rm "$targetFile"
-            fi
-
-            if [ -n "$ALIAS_NAME" ]; then
-                if [ ! -L $BINLOCATION/$ALIAS_NAME ]; then
-                    ln -s $BINLOCATION/$REPO $BINLOCATION/$ALIAS_NAME
-                    echo "Creating alias '$ALIAS_NAME' for '$REPO'."
-                fi
-            fi
-
-            ${SUCCESS_CMD}
-        fi
-    fi
-}
-
-hasCli
-getPackage
+echo "✅ OpenFaaS (faasd + faas-cli) setup complete! You may need to log out and log back in to use 'docker' and 'faas-cli' without 'sudo'."
