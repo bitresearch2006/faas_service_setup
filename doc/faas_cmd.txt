@@ -30,9 +30,6 @@ curl -X POST http://localhost:8080 \
   "diagnostics": true				\
 }
 
-# restart the faas service
-sudo systemctl restart faasd
-sudo systemctl restart faasd-provider
 
 Access through website
 http://localhost:8080/ui/
@@ -44,6 +41,7 @@ docker images      // show the docker image
 docker rmi -f obj-detect:old  // remove old service
 
 faas-cli list      // list servives from faas
+sudo docker images  // list of docker images
 faas-cli remove obj-detect  // remove unused in faas
 
 # clean up for system
@@ -51,6 +49,12 @@ df -h                  // list memory usage
 sudo apt autoremove -y
 sudo apt clean          // clean the unused in system
 docker system prune -a --volumes      // remove unused docker images
+
+## Start at fisrt time
+# restart the faas service
+sudo systemctl restart faasd
+sudo systemctl restart faasd-provider
+curl -X POST http://127.0.0.1:8080/function/ocr_detect // activate via in server, if it was not ready in portal
 
 
 
