@@ -75,7 +75,23 @@ sudo mv faas-cli "$BIN_DIR/faas-cli"
 # -------------------------
 # --- 4. Initialize faasd ---
 # -------------------------
-echo "[4/5] 🚀 Initializing faasd. This may take a moment..."
+# Define the source location using $HOME and the repository name
+FAASD_CONFIG_SRC="$HOME/$FAASD_REPO"
+FAASD_CONFIG_DEST="/var/lib/faasd"
+
+echo "[4/5] ⚙️ Copying faasd configuration files from $FAASD_CONFIG_SRC to $FAASD_CONFIG_DEST..."
+
+# 1. Ensure the destination directory exists (required by faasd)
+sudo mkdir -p $FAASD_CONFIG_DEST
+
+# 2. Copy the required config files from your repo clone to the installation directory
+# NOTE: This assumes your local cloned directory is named exactly like the repository ($FAASD_REPO)
+sudo cp "$FAASD_CONFIG_SRC/docker-compose.yaml" "$FAASD_CONFIG_DEST/"
+sudo cp "$FAASD_CONFIG_SRC/resolv.conf" "$FAASD_CONFIG_DEST/"
+
+echo "[4/5] 🚀 Installing and starting faasd. This may take a moment..."
+
+# The 'faasd install' command will now successfully find the files in /var/lib/faasd/
 sudo faasd install
 echo "faasd installation complete. Check status with: sudo systemctl status faasd"
 
@@ -87,4 +103,4 @@ docker --version
 faas-cli version
 faasd --version
 
-echo "✅ OpenFaaS (faasd + faas-cli) setup complete!"
+echo "✅ OpenFaaS (faasd + faas-cli) setup complete! You may need to log out and log back in to use 'docker' and 'faas-cli' without 'sudo'."
