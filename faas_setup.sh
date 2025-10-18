@@ -19,6 +19,8 @@ sudo systemctl start docker
 sudo usermod -aG docker "$USER"
 echo "User '$USER' added to the docker group. Please re-login for this change to fully apply."
 
+docker run -d -p 5000:5000 --restart=always --name registry registry:2
+
 echo "[2/3] 🚀 Downloading and running install.sh from your forked repo using download_with_retry..."
 
 curl -sSL "https://raw.githubusercontent.com/$GITHUB_ACCOUNT/$FAASD_REPO/master/hack/install.sh" -o install.sh
@@ -37,3 +39,10 @@ else
 fi
 
 echo "✅ OpenFaaS (faasd + faas-cli) setup complete!"
+
+# Note: Adding a user to the docker group requires a re-login to take effect.
+read -p "Do you want to restart now to apply docker group changes? [y/N]: " restart_choice
+if [[ "$restart_choice" =~ ^[Yy]$ ]]; then
+  echo "Restarting system..."
+  sudo reboot
+fi
