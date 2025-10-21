@@ -40,11 +40,13 @@ sudo systemctl disable docker || true
 sudo systemctl stop docker.socket || true
 sudo systemctl disable docker.socket || true
 sudo pkill -f dockerd || true
-mount | grep /var/lib/docker | awk '{print $3}' | xargs -r sudo umount -l
+mount | grep /var/lib/docker | awk '{print $3}' | xargs -r sudo umount -l || true
 sudo rm -rf /var/lib/docker || echo "⚠️ Could not remove /var/lib/docker. It may still be in use."
 sudo rm -rf /etc/docker
 sudo apt purge -y docker.io docker-ce docker-ce-cli containerd.io || true
 sudo apt autoremove -y
+# Explicitly remove current user from the docker group (reverses setup script action)
+sudo deluser "$USER" docker || true
 sudo groupdel docker || true
 echo "✅ Uninstallation complete."
 
