@@ -56,6 +56,43 @@ sudo systemctl restart faasd
 sudo systemctl restart faasd-provider
 curl -X POST http://127.0.0.1:8080/function/ocr_detect // activate via in server, if it was not ready in portal
 
+## setup the tunneling for services are running in WSL and this will access via know server by ngnix
+1) make the connection from wsl to remote machine which the one has static ip
+ ssh -N -R 127.0.0.1:8088:localhost:8080 bitresearch@117.200.182.195
+2) setup the ngnix server for route the request from 80 to 8088 from wsl machine
+    1) update the cnf for ngnix
+sudo nano /etc/nginx/sites-available/faasd_proxy
+server {
+    listen 80;
+    listen [::]:80;
+    server_name _; 
+
+    location / {
+        # CRITICAL: Forward traffic from public port 80 to the SSH tunnel on port 8088
+        proxy_pass http://127.0.0.1:8088; 
+
+        # Standard headers for OpenFaaS
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+      2) delete default link fog ngnix
+# This is the most common default file link location
+sudo unlink /etc/nginx/sites-enabled/default
+
+      3) Create a symlink to enable the configuration
+sudo ln -s /etc/nginx/sites-available/faasd_proxy /etc/nginx/sites-enabled/
+
+      4) Test the Nginx configuration for syntax errors
+sudo nginx -t
+
+      5) Reload Nginx to apply changes
+sudo systemctl reload nginx
+
+3) then use link from browser
+http://117.200.182.195/ui/
+
 
 
 
